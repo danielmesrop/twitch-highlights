@@ -1,21 +1,23 @@
 ---
 name: twitch-highlights
-description: Find and cut highlight clips from a Twitch streamer's VODs (rage, screaming, laughing, big reactions) and render them as 9:16 facecam-over-gameplay shorts with captions. Use when the user gives a Twitch channel or VOD link, or asks to clip Twitch streams or streamer highlights.
+description: Find and cut highlight clips from a Twitch or Kick streamer's VODs (rage, screaming, laughing, big reactions) and render them as 9:16 facecam-over-gameplay shorts with captions. Use when the user gives a Twitch or Kick channel or VOD link, or asks to clip Twitch/Kick streams or streamer highlights.
 ---
 
-# Twitch Highlights
+# Twitch & Kick Highlights
 
 Pipeline: VOD audio → loudness peaks → transcribe candidates → user picks → cut video → 9:16 stack → captions.
 Needs yt-dlp, ffmpeg, whisper, and the clipify skill (for `build_ass.py`). Work in `/tmp/twitch/`.
 
 ## 1. Pick the VOD
-Channel given → list recent VODs and let the user choose:
-`yt-dlp --flat-playlist -I 1:5 --print "%(id)s %(duration_string)s %(title)s" "https://www.twitch.tv/CHANNEL/videos?filter=archive&sort=time"`
-VOD links look like `https://www.twitch.tv/videos/ID`. Subscriber-only VODs won't download; say so.
+Channel given → list recent VODs and let the user choose (ask Twitch or Kick if unclear):
+- Twitch: `yt-dlp --flat-playlist -I 1:5 --print "%(url)s | %(duration_string)s | %(title).70s" "https://www.twitch.tv/CHANNEL/videos?filter=archive&sort=time"`
+- Kick: same command with `"https://kick.com/CHANNEL/videos"`. Strip the `#__youtubedl_smuggle...` tail from the printed URLs.
+VOD links look like `https://www.twitch.tv/videos/ID` or `https://kick.com/CHANNEL/videos/UUID`. Subscriber-only VODs won't download; say so.
+Everything below is identical for both sites. Ignore yt-dlp's "impersonation" and "subtitle tracks" warnings on Kick.
 
 ## 2. Find candidates from the audio
 ```bash
-yt-dlp -q -f Audio_Only -o /tmp/twitch/audio.%(ext)s "$VOD"   # ~1 min per 4 h; add --download-sections "*1:00:00-2:00:00" for a range, then pass --offset 3600
+yt-dlp -q -f Audio_Only/160p/worst -o /tmp/twitch/audio.%(ext)s "$VOD"   # Kick has no audio-only, so 160p; ~1-3 min per 4 h; add --download-sections "*1:00:00-2:00:00" for a range, then pass --offset 3600
 python3 <skill-dir>/scripts/find_peaks.py /tmp/twitch/audio.mp4 --top 15 > /tmp/twitch/peaks.json
 ```
 Peaks = moments much louder than the surrounding 3 minutes. Each is `{peak, start, end, score}` in VOD seconds (default 20 s build-up + 10 s reaction).
@@ -44,7 +46,7 @@ ffmpeg -y -i stacked_N.mp4 -vf "subtitles=/tmp/twitch/cap_N.ass" -c:v libx264 -p
 ```
 
 ## 7. Deliver
-Save to `./twitch_clips/CHANNEL_VODID/` with readable names. One line per clip: title, length, why it's good. Check a frame of each output before saying it's done.
+Save to `./stream_clips/CHANNEL_VODID/` with readable names. One line per clip: title, length, why it's good. Check a frame of each output before saying it's done.
 Remind the user once: posting another streamer's clips needs their permission (many have clipping programs). Never upload anything yourself.
 
 ## Limits
